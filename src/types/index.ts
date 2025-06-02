@@ -40,6 +40,9 @@ export interface Exam {
   endTime?: string;
   score?: number;
   percentage?: number;
+  exam_type: 'normal' | 'ai'; // Align with backend choices
+  ai_model?: AIModel;         // Nested AI model details
+  ai_model_id?: number;       // For sending to backend
 }
 
 // الاختبار القصير
@@ -99,5 +102,14 @@ export interface UserStats {
     ai: number;
     general: number;
   };
+}
+
+// AI Model
+export interface AIModel {
+  id: number;
+  name: string;
+  api_key?: string; // Present for create/update, not for display
+  model_identifier: string;
+  is_active: boolean;
 }
  
