@@ -20,6 +20,19 @@ class Question(models.Model):
     specialization = models.CharField(_('التخصص'), max_length=20, choices=SPECIALIZATION_CHOICES)
     year = models.CharField(_('سنة الدورة'), max_length=4)
     marks = models.PositiveSmallIntegerField(_('العلامة'), default=1)
+    DIFFICULTY_CHOICES = (
+        ('easy', 'سهل'),
+        ('medium', 'متوسط'),
+        ('hard', 'صعب'),
+    )
+    difficulty = models.CharField(
+        _('درجة الصعوبة'),
+        max_length=10,
+        choices=DIFFICULTY_CHOICES,
+        default='medium',
+        blank=False,
+        null=False
+    )
     
     # مرفق السؤال (اختياري)
     has_attachment = models.BooleanField(_('يحتوي على مرفق'), default=False)

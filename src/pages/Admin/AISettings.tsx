@@ -1,223 +1,198 @@
-import React, { useState, useEffect } from 'react';
-import aiService from '../../api/aiService';
-import { Save, Settings, Brain } from 'lucide-react';
+import React, { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../../contexts/AuthContext';
+import { AIModel } from '../../types';
+import * as aiService from '../../api/aiService';
 
-// قائمة بنماذج الذكاء الاصطناعي المتاحة (يمكن توسيعها لاحقًا)
-const aiModels = [
-  // OpenAI Models
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo (OpenAI)' },
-  { id: 'gpt-4', name: 'GPT-4 (OpenAI)' },
-  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo (OpenAI)' },
-  { id: 'gpt-4o', name: 'GPT-4o (OpenAI - Latest)' },
-  // Anthropic Models
-  { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus (Anthropic)' },
-  { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet (Anthropic)' },
-  { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Anthropic)' },
-  // Google Models
-  { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro (Google)' },
-  { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro (Google - Latest)' },
-  // OpenRouter Free Models
-  { id: 'openrouter/deepseek/deepseek-r1:free', name: 'DeepSeek R1 (OpenRouter - Free)' },
-  { id: 'mistralai/mistral-7b-instruct', name: 'Mistral 7B Instruct (OpenRouter - Free)' }, // Assuming this is free based on search context
-  // أضف نماذج أخرى هنا إذا لزم الأمر
-];
+const AISettings: React.FC = () => {
+  const authContext = useContext(AuthContext);
+  const [models, setModels] = useState<AIModel[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingModel, setEditingModel] = useState<AIModel | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
-const AISettings = () => {
-  const [selectedModel, setSelectedModel] = useState<string>(aiModels[0]?.id || '');
-  const [apiKey, setApiKey] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [testMessage, setTestMessage] = useState<string>('');
+  const [formData, setFormData] = useState<Omit<AIModel, 'id'>>({
+    name: '',
+    api_key: '',
+    model_identifier: '',
+    is_active: true,
+  });
 
-  // تحميل الإعدادات المحفوظة عند تحميل المكون
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        setIsLoading(true);
-        const settings = await aiService.getAISettings();
-        if (settings.model) {
-          setSelectedModel(settings.model);
-        }
-        if (settings.api_key) {
-          setApiKey(settings.api_key);
-        }
-      } catch (error) {
-        console.error('خطأ في تحميل الإعدادات:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadSettings();
-  }, []);
+    if (authContext?.user?.role !== 'admin') {
+      // Redirect or show an unauthorized message
+      // For simplicity, we'll just return null, but a redirect is better.
+      // navigate('/unauthorized');
+      return;
+    }
+    fetchModels();
+  }, [authContext]);
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const fetchModels = async () => {
     setIsLoading(true);
-    setSaveStatus('idle');
-
+    setError(null);
     try {
-      // حفظ الإعدادات باستخدام خدمة الذكاء الاصطناعي
-      await aiService.saveAISettings({
-        model: selectedModel,
-        api_key: apiKey
-      });
-      
-      setSaveStatus('success');
-      setTimeout(() => setSaveStatus('idle'), 3000); // إخفاء رسالة النجاح بعد 3 ثوان
-    } catch (error) {
-      console.error('خطأ في حفظ الإعدادات:', error);
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
+      const data = await aiService.getAIModels();
+      setModels(data);
+    } catch (err) {
+      setError('Failed to fetch AI models.');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
-  
-  // اختبار الاتصال بخدمة الذكاء الاصطناعي
-  const handleTestConnection = async () => {
-    if (!apiKey || !selectedModel) {
-      setTestStatus('error');
-      setTestMessage('يرجى إدخال مفتاح API ونموذج الذكاء الاصطناعي أولاً');
-      setTimeout(() => setTestStatus('idle'), 3000);
-      return;
-    }
-    
-    setTestStatus('testing');
-    setTestMessage('');
-    
-    try {
-      const result = await aiService.testAIConnection({
-        model: selectedModel,
-        api_key: apiKey
-      });
-      
-      setTestStatus('success');
-      setTestMessage(result.message);
-      setTimeout(() => setTestStatus('idle'), 3000);
-    } catch (error) {
-      console.error('خطأ في اختبار الاتصال:', error);
-      setTestStatus('error');
-      setTestMessage('فشل الاتصال بخدمة الذكاء الاصطناعي. تأكد من صحة المفتاح والنموذج.');
-      setTimeout(() => setTestStatus('idle'), 3000);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    if (type === 'checkbox') {
+      setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
+  const resetForm = () => {
+    setFormData({ name: '', api_key: '', model_identifier: '', is_active: true });
+    setEditingModel(null);
+    setShowForm(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (editingModel) {
+        // If api_key is empty, don't send it in the update payload
+        const updateData: Partial<Omit<AIModel, 'id'>> = { ...formData };
+        if (!formData.api_key) {
+          delete updateData.api_key;
+        }
+        await aiService.updateAIModel(editingModel.id, updateData);
+      } else {
+        await aiService.createAIModel(formData);
+      }
+      fetchModels();
+      resetForm();
+    } catch (err) {
+      setError(editingModel ? 'Failed to update AI model.' : 'Failed to create AI model.');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEdit = (model: AIModel) => {
+    setEditingModel(model);
+    setFormData({
+      name: model.name,
+      api_key: '', // API key is not displayed, user enters new one if they want to change
+      model_identifier: model.model_identifier,
+      is_active: model.is_active,
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this AI model?')) {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await aiService.deleteAIModel(id);
+        fetchModels();
+      } catch (err) {
+        setError('Failed to delete AI model.');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+  
+  if (authContext?.user?.role !== 'admin') {
+    return <div className="p-4">Access Denied. You must be an admin to view this page.</div>;
+  }
+
   return (
-    <div className="py-10">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center mb-6">
-          <Settings className="h-8 w-8 text-primary-600 ml-3" />
-          <h1 className="text-3xl font-bold text-gray-900">إعدادات الذكاء الاصطناعي</h1>
-        </div>
-        <p className="text-gray-600 mb-8">
-          قم بتكوين نموذج الذكاء الاصطناعي ومفتاح الـ API الخاص به لاستخدامه في توليد أسئلة الامتحان الذكي.
-        </p>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">AI Model Settings</h1>
 
-        <form onSubmit={handleSaveSettings} className="bg-white shadow-md rounded-lg p-6 space-y-6">
-          <div>
-            <label htmlFor="aiModel" className="block text-sm font-medium text-gray-700 mb-1">
-              اختر نموذج الذكاء الاصطناعي
-            </label>
-            <div className="relative">
-              <select
-                id="aiModel"
-                name="aiModel"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="block w-full px-4 py-3 border border-gray-300 rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 pr-10"
-              >
-                {aiModels.map(model => (
-                  <option key={model.id} value={model.id}>{model.name}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Brain className="h-5 w-5 text-gray-400" />
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              سيتم استخدام هذا النموذج لتوليد الأسئلة في وضع "الامتحان الذكي".
-            </p>
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
+      
+      <button
+        onClick={() => { setShowForm(true); setEditingModel(null); setFormData({ name: '', api_key: '', model_identifier: '', is_active: true }); }}
+        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-4"
+      >
+        Add New AI Model
+      </button>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="mb-8 p-4 border rounded shadow-sm">
+          <h2 className="text-xl mb-3">{editingModel ? 'Edit AI Model' : 'Add New AI Model'}</h2>
+          <div className="mb-3">
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name:</label>
+            <input type="text" name="name" id="name" value={formData.name} onChange={handleInputChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
           </div>
-
-          <div>
-            <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-1">
-              مفتاح الـ API (API Key)
-            </label>
-            <input
-              type="password" // استخدام type="password" لإخفاء المفتاح
-              id="apiKey"
-              name="apiKey"
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="أدخل مفتاح الـ API الخاص بك هنا"
-            />
-            <p className="mt-2 text-xs text-gray-500">
-              مفتاح الـ API ضروري للتواصل مع خدمة الذكاء الاصطناعي. تأكد من إدخاله بشكل صحيح.
-              <strong className='text-red-500'> لا تشارك هذا المفتاح مع أحد.</strong>
-            </p>
+          <div className="mb-3">
+            <label htmlFor="api_key" className="block text-sm font-medium text-gray-700">API Key:</label>
+            <input type="password" name="api_key" id="api_key" value={formData.api_key || ''} onChange={handleInputChange} placeholder={editingModel ? "Enter new key to change" : ""} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
           </div>
-
-          <div className="pt-4 border-t border-gray-200">
-            <div className="mb-4">
-              <button
-                type="button"
-                onClick={handleTestConnection}
-                disabled={testStatus === 'testing' || !apiKey || !selectedModel}
-                className={`btn btn-secondary flex items-center ${testStatus === 'testing' || !apiKey || !selectedModel ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {testStatus === 'testing' ? (
-                  <>
-                    <span className="loader-btn mr-2"></span>
-                    جاري اختبار الاتصال...
-                  </>
-                ) : (
-                  <>
-                    <Brain className="ml-1 h-5 w-5" />
-                    اختبار الاتصال
-                  </>
-                )}
-              </button>
-              
-              {testStatus === 'success' && (
-                <p className="text-green-600 mt-2">{testMessage || 'تم الاتصال بنجاح!'}</p>
-              )}
-              {testStatus === 'error' && (
-                <p className="text-red-600 mt-2">{testMessage || 'فشل الاتصال. تأكد من صحة المفتاح والنموذج.'}</p>
-              )}
-            </div>
-            
-            <div className="flex items-center justify-end">
-              {saveStatus === 'success' && (
-                <p className="text-green-600 mr-4">تم حفظ الإعدادات بنجاح!</p>
-              )}
-              {saveStatus === 'error' && (
-                <p className="text-red-600 mr-4">حدث خطأ أثناء حفظ الإعدادات. حاول مرة أخرى.</p>
-              )}
-              <button
-                type="submit"
-                disabled={isLoading || !apiKey}
-                className={`btn btn-primary flex items-center ${isLoading || !apiKey ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isLoading ? (
-                  <>
-                    <span className="loader-btn mr-2"></span>
-                    جاري الحفظ...
-                  </>
-                ) : (
-                  <>
-                    <Save className="ml-1 h-5 w-5" />
-                    حفظ الإعدادات
-                  </>
-                )}
-              </button>
-            </div>
+          <div className="mb-3">
+            <label htmlFor="model_identifier" className="block text-sm font-medium text-gray-700">Model Identifier:</label>
+            <input type="text" name="model_identifier" id="model_identifier" value={formData.model_identifier} onChange={handleInputChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+          </div>
+          <div className="mb-3">
+            <label htmlFor="is_active" className="flex items-center">
+              <input type="checkbox" name="is_active" id="is_active" checked={formData.is_active} onChange={handleInputChange} className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" />
+              <span className="ml-2 text-sm text-gray-700">Is Active</span>
+            </label>
+          </div>
+          <div className="flex items-center justify-end space-x-2">
+            <button type="submit" disabled={isLoading} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400">
+              {isLoading ? (editingModel ? 'Updating...' : 'Creating...') : (editingModel ? 'Update Model' : 'Create Model')}
+            </button>
+            <button type="button" onClick={resetForm} className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+              Cancel
+            </button>
           </div>
         </form>
-      </div>
+      )}
+
+      {isLoading && !showForm && <p>Loading models...</p>}
+
+      {!isLoading && models.length === 0 && !showForm && <p>No AI models found.</p>}
+
+      {!showForm && models.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white border">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model Identifier</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {models.map(model => (
+                <tr key={model.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">{model.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{model.model_identifier}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${model.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {model.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button onClick={() => handleEdit(model)} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                    <button onClick={() => handleDelete(model.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

@@ -307,6 +307,18 @@ const AdminDashboard = () => {
             </div>
             <p className="mt-2 text-sm text-gray-500">العودة إلى الصفحة الرئيسية للمنصة.</p>
           </a>
+
+          <a 
+            href="/admin/ai-settings" 
+            className="block p-6 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50"
+          >
+            <div className="flex items-center">
+              {/* Using Database icon as a placeholder for AI/Cog icon */}
+              <Database className="h-6 w-6 text-primary-600 ml-2" /> 
+              <h3 className="text-base font-medium text-gray-900">إعدادات نماذج AI</h3>
+            </div>
+            <p className="mt-2 text-sm text-gray-500">إدارة وتكوين نماذج الذكاء الاصطناعي.</p>
+          </a>
         </div>
       </div>
     </div>
